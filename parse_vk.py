@@ -12,7 +12,7 @@ HOSTS = ["https://api.vk.com", "https://api.vk.ru"]
 CACHE, OUT = "cache.json", "replacements.json"
 DAYS = {"понедельник": 0, "вторник": 1, "среда": 2, "четверг": 3, "пятница": 4}
 LAT = str.maketrans("ABCEHKMOPTXY", "АВСЕНКМОРТХУ")
-ROW = re.compile(r"^\W*([A-Za-zА-Яа-я]{3,6})\s*[-–—]?\s*([0-9Il|!]{1,3})\s+(.*)$")
+ROW = re.compile(r"^\W*([A-Za-zА-Яа-я]{1,6})\s*[-–—]?\s*([0-9Il|!]{1,3})\s+(.*)$")
 
 
 def vk(method, **p):
@@ -76,7 +76,11 @@ def best_lines(img):
     gray = deskew(gray)
     thr = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 41, 15)
     best, score = [], -1
-    for variant in (gray, thr):
+    inv = 255 - thr  # третий вариант: убрать линии таблицы
+    grid = cv2.add(cv2.morphologyEx(inv, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (80, 1))),
+                   cv2.morphologyEx(inv, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 80))))
+    clean = 255 - cv2.subtract(inv, cv2.dilate(grid, np.ones((3, 3), np.uint8)))
+    for variant in (gray, thr, clean):
         for psm in (6, 4):
             ls = lines_from(variant, psm)
             s = sum(1 for l in ls if ROW.match(l))
@@ -137,6 +141,10 @@ def analyse(img, post_date, url):
     for m in mine:
         print("  БИАС-14:", m.group(0))
     wd = weekday(head)
+    print(f"  строк с группами: {len(rows)}, день недели: {wd}, строк БИАС-14: {len(mine)}")
+    if len(rows) < 8 or wd is None:
+        for l in lines[:70]:
+            print("   |", l)
     cancel, lessons, bad = [], {}, False
     for m in mine:
         res = parse_rest(m.group(3))
@@ -176,7 +184,7 @@ def main():
             ph = a["photo"]
             key = f'{p["id"]}_{ph["id"]}'
             seen.add(key)
-            if key in cache or new >= 8:
+            if (key in cache and not (cache[key] or {}).get("check")) or new >= 8:
                 continue
             new += 1
             try:
