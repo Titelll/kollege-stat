@@ -15,6 +15,9 @@ LAT = str.maketrans("ABCEHKMOPTXY", "АВСЕНКМОРТХУ")
 ROW = re.compile(r"^\W*([A-Za-zА-Яа-я]{1,6})\s*[-–—]?\s*([0-9Il|!]{1,3})\s+(.*)$")
 
 
+LOOSE = re.compile(r"[БB][ИU][АA][СC]\W{0,2}[1Il|]\W{0,2}4\s+(.*)$", re.I)
+
+
 def vk(method, **p):
     p.update(access_token=os.environ["VK_TOKEN"], v="5.199")
     last = None
@@ -61,11 +64,11 @@ def lines_from(img, psm):
     return [" ".join(x[2] for x in sorted(l, key=lambda t: t[1])) for l in lines]
 
 
-def header_ok(img):
-    top = cv2.cvtColor(img[: int(img.shape[0] * 0.25)], cv2.COLOR_BGR2GRAY)
+def header_lines(img):
+    top = cv2.cvtColor(img[: int(img.shape[0] * 0.4)], cv2.COLOR_BGR2GRAY)
     k = 1800 / top.shape[1]
     top = cv2.resize(top, None, fx=k, fy=k, interpolation=cv2.INTER_CUBIC)
-    return bool(re.search(r"ИЗМЕН|РАСПИС", " ".join(lines_from(top, 6)).upper()))
+    return lines_from(top, 6)
 
 
 def best_lines(img):
@@ -104,21 +107,30 @@ def weekday(head):
     return None
 
 
+def header_date(head):
+    m = re.search(r"(\d{1,2})[.,](\d{1,2})[.,](20\d\d)", " ".join(head))
+    try:
+        return dt.date(int(m.group(3)), int(m.group(2)), int(m.group(1))) if m else None
+    except ValueError:
+        return None
+
+
 def parse_rest(rest):
     """-> ('cancel', [пары]) | ('lesson', [пары], dict) | None"""
-    m = re.match(r"^\s*([0-9Il|/\\.,]+)\s+(.*)$", rest)
+    rest = rest.lstrip(" |_—–-.,;:")
+    m = re.match(r"^([0-9Il/\\]+)\s+(.*)$", rest)
     if not m:
         return None
-    pairs = sorted({int(x) for x in re.findall(r"[1-8]", re.sub(r"[Il|]", "1", m.group(1)))})
+    pairs = sorted({int(x) for x in re.findall(r"[1-8]", re.sub(r"[Il]", "1", m.group(1)))})
     body = m.group(2).strip()
     if not pairs:
         return None
     if re.search(r"нет", body, re.I):
         return ("cancel", pairs)
     room = None
-    r = re.search(r"\s([Сс]\s*/\s*[зЗ]\w{1,2}|Л\s?\d{3}|\d{3})\s*$", " " + body)
+    r = re.search(r"\s([Сс]\s*/\s*[зЗ]\w{1,2}|[СC]\s?-\s?\d{1,3}|ЛЩ\s?\d{3}|Л\s?\d{3}|\d{3})\s*$", " " + body)
     if r:
-        room = "спортзал" if "/" in r.group(1) else r.group(1).replace(" ", "")
+        room = "спортзал" if "/" in r.group(1) else r.group(1).replace(" ", "").replace("C", "С")
         body = (" " + body)[:r.start()].strip()
     teacher = None
     t = re.search(r"([А-ЯЁ][а-яё]{2,})\s+([А-ЯЁ])\.?\s?([А-ЯЁ])\.?\s*$", body)
@@ -129,25 +141,30 @@ def parse_rest(rest):
 
 
 def analyse(img, post_date, url):
-    if not header_ok(img):
-        return None  # не лист замен
-    lines = best_lines(img)
-    head = lines[:10]
+    head = header_lines(img)
     if not re.search(r"ИЗМЕН|РАСПИС", " ".join(head).upper()):
         return None  # не лист замен
+    lines = best_lines(img)
     rows = [(ROW.match(l)) for l in lines]
     rows = [m for m in rows if m]
-    mine = [m for m in rows if is_mine(m.group(1), m.group(2))]
-    for m in mine:
-        print("  БИАС-14:", m.group(0))
+    mine = []
+    for l in lines:
+        m = ROW.match(l)
+        if m and is_mine(m.group(1), m.group(2)):
+            mine.append((l, m.group(3)))
+        elif LOOSE.search(l):
+            mine.append((l, LOOSE.search(l).group(1)))
+    for l, _ in mine:
+        print("  БИАС-14:", l)
     wd = weekday(head)
+    hd = header_date(head)
     print(f"  строк с группами: {len(rows)}, день недели: {wd}, строк БИАС-14: {len(mine)}")
-    if len(rows) < 8 or wd is None:
+    if len(rows) < 8 or (wd is None and hd is None):
         for l in lines[:70]:
             print("   |", l)
     cancel, lessons, bad = [], {}, False
-    for m in mine:
-        res = parse_rest(m.group(3))
+    for _, rest in mine:
+        res = parse_rest(rest)
         if not res:
             bad = True
         elif res[0] == "cancel":
@@ -157,12 +174,14 @@ def analyse(img, post_date, url):
                 lessons[str(n)] = res[2]
     if len(rows) >= 8 and not mine:
         return None  # лист прочитан, для нашей группы изменений нет
-    if wd is None:
-        date = post_date + dt.timedelta(days=1)
-    else:
+    if wd is not None:
         date = post_date + dt.timedelta(days=(wd - post_date.weekday()) % 7)
+    elif hd:
+        date = hd  # день недели не написан — берём дату из шапки
+    else:
+        date = post_date + dt.timedelta(days=1)
     e = {"date": str(date), "post": url}
-    if len(rows) < 8 or wd is None or bad:
+    if len(rows) < 8 or (wd is None and hd is None) or bad:
         e["check"] = True
     else:
         e.update(cancel=sorted(set(cancel)), lessons=lessons)
@@ -171,6 +190,8 @@ def analyse(img, post_date, url):
 
 # ---------- запуск ----------
 def main():
+    if os.path.exists("test.jpg"):  # проверка на реальном фото листа, положенном в репозиторий
+        print("ТЕСТ по файлу test.jpg:", analyse(cv2.imread("test.jpg"), dt.date.today(), "test"))
     cache = json.load(open(CACHE)) if os.path.exists(CACHE) else {}
     seen, new = set(), 0
     today0 = dt.datetime.now(TZ).date()
