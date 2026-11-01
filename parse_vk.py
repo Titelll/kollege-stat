@@ -36,7 +36,7 @@ def deskew(gray):
     lines = cv2.HoughLinesP(cv2.Canny(gray, 50, 150), 1, np.pi / 720, 200, minLineLength=w // 3, maxLineGap=20)
     if lines is None:
         return gray
-    angs = [np.degrees(np.arctan2(y2 - y1, x2 - x1)) for x1, y1, x2, y2 in lines[:, 0]]
+    angs = [np.degrees(np.arctan2(y2 - y1, x2 - x1)) for x1, y1, x2, y2 in np.asarray(lines).reshape(-1, 4)]
     angs = [a for a in angs if abs(a) < 15]
     if not angs:
         return gray
@@ -59,6 +59,13 @@ def lines_from(img, psm):
         cur.append(w)
     lines.append(cur)
     return [" ".join(x[2] for x in sorted(l, key=lambda t: t[1])) for l in lines]
+
+
+def header_ok(img):
+    top = cv2.cvtColor(img[: int(img.shape[0] * 0.25)], cv2.COLOR_BGR2GRAY)
+    k = 1800 / top.shape[1]
+    top = cv2.resize(top, None, fx=k, fy=k, interpolation=cv2.INTER_CUBIC)
+    return bool(re.search(r"ИЗМЕН|РАСПИС", " ".join(lines_from(top, 6)).upper()))
 
 
 def best_lines(img):
@@ -118,6 +125,8 @@ def parse_rest(rest):
 
 
 def analyse(img, post_date, url):
+    if not header_ok(img):
+        return None  # не лист замен
     lines = best_lines(img)
     head = lines[:10]
     if not re.search(r"ИЗМЕН|РАСПИС", " ".join(head).upper()):
@@ -155,17 +164,21 @@ def analyse(img, post_date, url):
 # ---------- запуск ----------
 def main():
     cache = json.load(open(CACHE)) if os.path.exists(CACHE) else {}
-    seen = set()
+    seen, new = set(), 0
+    today0 = dt.datetime.now(TZ).date()
     for p in vk("wall.get", domain=DOMAIN, count=15)["items"]:
         pd = dt.datetime.fromtimestamp(p["date"], TZ).date()
+        if (today0 - pd).days > 7:
+            continue
         for a in p.get("attachments", []):
             if a["type"] != "photo":
                 continue
             ph = a["photo"]
             key = f'{p["id"]}_{ph["id"]}'
             seen.add(key)
-            if key in cache:
+            if key in cache or new >= 8:
                 continue
+            new += 1
             try:
                 url = max(ph["sizes"], key=lambda s: s["width"] * s["height"])["url"]
                 img = cv2.imdecode(np.frombuffer(requests.get(url, timeout=60).content, np.uint8), cv2.IMREAD_COLOR)
