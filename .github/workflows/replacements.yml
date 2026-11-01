@@ -1,0 +1,37 @@
+name: replacements
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: replacements
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Установка Tesseract и библиотек
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-rus
+          pip install requests pytesseract opencv-python-headless numpy
+      - name: Разбор замен из ВК
+        run: python parse_vk.py
+        env:
+          VK_TOKEN: ${{ secrets.VK_TOKEN }}
+      - name: Сохранить результат
+        run: |
+          git config user.name "replacements-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add replacements.json cache.json
+          git diff --staged --quiet || (git commit -m "update replacements" && git push)
