@@ -1,17 +1,5 @@
 [
  {
-  "date": "2026-11-05",
-  "post": "https://vk.com/wall-162423111_3264",
-  "cancel": [],
-  "lessons": {
-   "3": {
-    "subject": "ОИБ",
-    "room": "303",
-    "teacher": "Бирюкова О.Н."
-   }
-  }
- },
- {
   "date": "2026-11-06",
   "post": "https://vk.com/wall-162423111_3265",
   "check": true
