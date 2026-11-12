@@ -1,22 +1,5 @@
 [
  {
-  "date": "2026-11-09",
-  "post": "https://vk.com/wall-162423111_3267",
-  "cancel": [],
-  "lessons": {
-   "3": {
-    "subject": "Основы алгоритмизации Мережникова ЕИ",
-    "room": "404",
-    "teacher": null
-   },
-   "4": {
-    "subject": "Основы алгоритмизации Мережникова ЕИ",
-    "room": "404",
-    "teacher": null
-   }
-  }
- },
- {
   "date": "2026-11-10",
   "post": "https://vk.com/wall-162423111_3269",
   "check": true
