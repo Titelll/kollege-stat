@@ -22,6 +22,18 @@
   "check": true
  },
  {
+  "date": "2026-11-18",
+  "post": "https://vk.com/wall-162423111_3280",
+  "cancel": [],
+  "lessons": {
+   "3": {
+    "subject": "ОИБ 7 14",
+    "room": null,
+    "teacher": null
+   }
+  }
+ },
+ {
   "date": "2026-12-20",
   "post": "https://vk.com/wall-162423111_3274",
   "check": true
