@@ -34,18 +34,25 @@
   }
  },
  {
-  "date": "2026-12-20",
-  "post": "https://vk.com/wall-162423111_3274",
-  "check": true
- },
- {
-  "date": "2026-12-28",
-  "post": "https://vk.com/wall-162423111_3274",
-  "check": true
- },
- {
-  "date": "2026-12-28",
-  "post": "https://vk.com/wall-162423111_3274",
-  "check": true
+  "date": "2026-11-19",
+  "post": "https://vk.com/wall-162423111_3281",
+  "cancel": [],
+  "lessons": {
+   "1": {
+    "subject": "ОИБ",
+    "room": null,
+    "teacher": "Бирюкова О.Н."
+   },
+   "3": {
+    "subject": "ОИБ",
+    "room": null,
+    "teacher": "Бирюкова О.Н."
+   },
+   "4": {
+    "subject": "ОИБ",
+    "room": null,
+    "teacher": "Бирюкова О.Н."
+   }
+  }
  }
 ]
